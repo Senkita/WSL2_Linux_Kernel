@@ -1,0 +1,114 @@
+name: 编译bzImage
+
+on:
+    push:
+        branches:
+            - main
+    schedule:
+        - cron: '0 0 15 * *'
+
+jobs:
+    download_and_build:
+        runs-on: ubuntu-latest
+        steps:
+            - name: 下载脚本
+              env:
+                  TOKEN: ${{ secrets.TOKEN }}
+                  REF: github.com/${{ github.repository }}
+                  #   REF: github.com/${{ env.repository }}
+              run: |
+                  sudo git clone https://${TOKEN}@${REF} --depth 1 --single-branch --branch main
+
+            - name: 运行脚本
+              run: |
+                  cd WSL2_Linux_Kernel
+                  sudo bash build.sh
+
+            - name: 上传bzImage至artifact
+              uses: actions/upload-artifact@master
+              with:
+                  name: kernel
+                  path: './WSL2_Linux_Kernel/linux/arch/x86/boot/bzImage'
+                  if-no-files-found: error
+
+            - name: 上传linux/至artifact
+              uses: actions/upload-artifact@master
+              with:
+                  name: linux
+                  path: './WSL2_Linux_Kernel/linux/'
+
+    commit_kernel:
+        needs: download_and_build
+        runs-on: ubuntu-latest
+        steps:
+            - name: 从artifact中获取kernel
+              uses: actions/download-artifact@master
+              with:
+                  name: kernel
+                  if-no-files-found: error
+
+            - name: 创建release
+              env:
+                  TOKEN: ${{ secrets.TOKEN }}
+                  REPO: ${{ github.repository }}
+                  #   REPO: ${{ env.repository }}
+              run: |
+                  sudo apt install curl jq -y
+                  echo "DATE=$(date '+%Y%m%d%H%M%S')" >> $GITHUB_ENV
+
+                  sudo curl \
+                  -X POST \
+                  -H 'Accept: application/vnd.github.v3+json' \
+                  -H 'Authorization: token ${TOKEN}' \
+                  -d '{"tag_name":"${DATE}"}' \
+                  https://api.github.com/repos/${REPO}/releases)" \
+                  -o Response.json
+
+            - name: 上传kernel
+              env:
+                  TOKEN: ${{ secrets.TOKEN }}
+                  REPO: ${{ github.repository }}
+                  #   REPO: ${{ env.repository }}
+                  FILE: 'kernel'
+              run: |
+                  echo "RELEASE_ID=$(cat Response.json|jq .id)" >> $GITHUB_ENV
+
+                  curl \
+                  -X POST \
+                  --H "Authorization: token ${TOKEN}" \
+                  -H "Content-Type: $(file -b --mime-type ${FILE})" \
+                  -d "${FILE}" \
+                  https://uploads.github.com/repos/${REPO}/releases/${RELEASE_ID}/assets?name=kernel
+
+    commit_linux:
+        needs: download_and_build
+        runs-on: ubuntu-latest
+        steps:
+            - name: 从artifact中获取linux
+              uses: actions/download-artifact@master
+              with:
+                  name: linux
+                  if-no-files-found: error
+
+            - name: 推送linux/
+              working-directory: linux/
+              env:
+                  TOKEN: ${{ secrets.TOKEN }}
+                  REF: github.com/${{ github.repository }}
+                  #   REF: github.com/${{ env.repository }}
+                  OWNER: ${{ github.repository_owner }}
+                  #   OWNER: ${{ env.repository_owner }}
+                  EMAIL: 42566210+Senkita@users.noreply.github.com
+              run: |
+                  sudo git config --global user.name "${OWNER}"
+                  sudo git config --global user.email "${EMAIL}"
+                  sudo git config --global init.defaultBranch WSL2-Linux-Kernel
+
+                  sudo git init
+                  sudo git remote add origin https://${TOKEN}@${REF}
+
+                  sudo git push origin -d WSL2-Linux-Kernel
+
+                  sudo git add .
+                  sudo git commit -m "feat(*): commit by Github Actions"
+                  sudo git push origin WSL2-Linux-Kernel
