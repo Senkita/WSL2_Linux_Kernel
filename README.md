@@ -10,10 +10,7 @@
 ## Features
 
 1. 修改内核配置，支持 nbd 模块
-
-## Todos
-
--   [ ] 使用 Github Actions 定时编译并发布最新 WSL2 内核
+2. 使用 Github Actions 定时编译并发布最新 WSL2 内核
 
 ## Maintainers
 
