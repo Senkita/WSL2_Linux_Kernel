@@ -15,7 +15,6 @@ jobs:
               env:
                   TOKEN: ${{ secrets.TOKEN }}
                   REF: github.com/${{ github.repository }}
-                  #   REF: github.com/${{ env.repository }}
               run: |
                   sudo git clone https://${TOKEN}@${REF} --depth 1 --single-branch --branch main
 
@@ -45,7 +44,6 @@ jobs:
               env:
                   TOKEN: ${{ secrets.TOKEN }}
                   REPO: ${{ github.repository }}
-                  #   REPO: ${{ env.repository }}
               run: |
                   sudo apt update
                   sudo apt install curl jq -y
@@ -63,14 +61,13 @@ jobs:
               env:
                   TOKEN: ${{ secrets.TOKEN }}
                   REPO: ${{ github.repository }}
-                  #   REPO: ${{ env.repository }}
                   FILE: 'kernel'
               run: |
                   echo "RELEASE_ID=$(cat Response.json|jq .id)" >> $GITHUB_ENV
 
                   curl \
                   -X POST \
-                  --H "Authorization: token ${TOKEN}" \
+                  -H "Authorization: token ${TOKEN}" \
                   -H "Content-Type: $(file -b --mime-type ${FILE})" \
                   -d "${FILE}" \
                   https://uploads.github.com/repos/${REPO}/releases/${RELEASE_ID}/assets?name=kernel
